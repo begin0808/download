@@ -219,6 +219,113 @@ class PlaylistDialog(ctk.CTkToplevel):
         self.destroy()
         self.master_view.stop_download()
 
+class ImageEditorDialog(ctk.CTkToplevel):
+    def __init__(self, master, pil_image, **kwargs):
+        super().__init__(master, **kwargs)
+        self.title("圖片預覽與編輯 - Studio0808")
+        self.geometry("760x600")
+        self.master_view = master
+        from PIL import Image
+        self.original_image = pil_image.copy()
+        self.current_image = pil_image.copy()
+        
+        self.setup_ui()
+        self.update_preview()
+        
+        # Center relative to parent
+        self.update_idletasks()
+        try:
+            parent = self.master.winfo_toplevel()
+            p_width, p_height = parent.winfo_width(), parent.winfo_height()
+            p_x, p_y = parent.winfo_x(), parent.winfo_y()
+            x = p_x + (p_width // 2) - 380
+            y = p_y + (p_height // 2) - 300
+            self.geometry(f"760x600+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        self.transient(master.winfo_toplevel())
+        self.grab_set()
+
+    def setup_ui(self):
+        # Toolbar
+        toolbar = ctk.CTkFrame(self, fg_color="transparent")
+        toolbar.pack(fill="x", padx=15, pady=10)
+        
+        btn_font = ("Microsoft JhengHei UI", 13, "bold")
+        ctk.CTkButton(toolbar, text="🔄 向左旋轉", width=105, height=32, font=btn_font, command=self.rotate_left).pack(side="left", padx=4)
+        ctk.CTkButton(toolbar, text="🔄 向右旋轉", width=105, height=32, font=btn_font, command=self.rotate_right).pack(side="left", padx=4)
+        ctk.CTkButton(toolbar, text="↕️ 垂直翻轉", width=105, height=32, font=btn_font, command=self.flip_vertical).pack(side="left", padx=4)
+        ctk.CTkButton(toolbar, text="↔️ 水平翻轉", width=105, height=32, font=btn_font, command=self.flip_horizontal).pack(side="left", padx=4)
+        
+        ctk.CTkButton(toolbar, text="💾 另存新檔", width=105, height=32, font=btn_font, fg_color="#00897B", hover_color="#00695C", command=self.save_image).pack(side="right", padx=4)
+        ctk.CTkButton(toolbar, text="📋 複製圖片", width=105, height=32, font=btn_font, fg_color="#6366F1", hover_color="#4F46E5", command=self.copy_image).pack(side="right", padx=4)
+
+        # Image Container
+        self.canvas_frame = ctk.CTkFrame(self, fg_color="#121212", corner_radius=10)
+        self.canvas_frame.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        
+        self.image_label = ctk.CTkLabel(self.canvas_frame, text="")
+        self.image_label.pack(fill="both", expand=True, padx=10, pady=10)
+
+    def update_preview(self):
+        from PIL import Image
+        w, h = self.current_image.size
+        max_w, max_h = 720, 480
+        ratio = min(max_w / max(1, w), max_h / max(1, h), 1.0)
+        new_w, new_h = max(1, int(w * ratio)), max(1, int(h * ratio))
+        
+        resized = self.current_image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        self.tk_img = ctk.CTkImage(light_image=resized, dark_image=resized, size=(new_w, new_h))
+        self.image_label.configure(image=self.tk_img)
+
+    def rotate_left(self):
+        self.current_image = self.current_image.rotate(90, expand=True)
+        self.update_preview()
+
+    def rotate_right(self):
+        self.current_image = self.current_image.rotate(-90, expand=True)
+        self.update_preview()
+
+    def flip_vertical(self):
+        from PIL import Image
+        self.current_image = self.current_image.transpose(Image.FLIP_TOP_BOTTOM)
+        self.update_preview()
+
+    def flip_horizontal(self):
+        from PIL import Image
+        self.current_image = self.current_image.transpose(Image.FLIP_LEFT_RIGHT)
+        self.update_preview()
+
+    def save_image(self):
+        from tkinter import filedialog
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG Image", "*.png"), ("JPEG Image", "*.jpg"), ("All Files", "*.*")]
+        )
+        if file_path:
+            try:
+                self.current_image.save(file_path)
+                messagebox.showinfo("成功", f"圖片已成功儲存至：\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("失敗", f"儲存圖片失敗：{e}")
+
+    def copy_image(self):
+        import io
+        try:
+            import win32clipboard
+            output = io.BytesIO()
+            self.current_image.convert('RGB').save(output, 'BMP')
+            data = output.getvalue()[14:]
+            output.close()
+            
+            win32clipboard.OpenClipboard()
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+            win32clipboard.CloseClipboard()
+            messagebox.showinfo("成功", "已成功複製圖片至剪貼簿！")
+        except Exception:
+            messagebox.showinfo("提示", "圖片已準備就緒，可以使用另存新檔進行匯出。")
+
 class DownloadView(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
@@ -443,14 +550,18 @@ class DownloadView(ctk.CTkFrame):
         self.status_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 5))
         self.status_frame.grid_columnconfigure(1, weight=1) # Right side expands
         
+        self.current_raw_image = None
+        
         # Left: Thumbnail Canvas (16:9 approx)
-        self.thumbnail_canvas = tk.Canvas(self.status_frame, width=240, height=135, bg="#000000", highlightthickness=0)
+        self.thumbnail_canvas = tk.Canvas(self.status_frame, width=240, height=135, bg="#000000", highlightthickness=0, cursor="hand2")
         self.thumbnail_canvas.grid(row=0, column=0, rowspan=2, padx=10, pady=10)
+        self.thumbnail_canvas.bind("<Button-1>", self.open_thumbnail_editor)
+        
         # Dummy Image / Placeholder
         from PIL import Image, ImageDraw, ImageTk
         img = Image.new("RGB", (240, 135), (40, 40, 40))
         d = ImageDraw.Draw(img)
-        d.text((85, 60), "No Image", fill=(150,150,150))
+        d.text((70, 60), "點擊檢視/編輯圖片", fill=(180,180,180))
         self.default_thumb = ImageTk.PhotoImage(img)
         self.thumbnail_canvas.create_image(0, 0, image=self.default_thumb, anchor="nw")
         
@@ -1324,26 +1435,35 @@ class DownloadView(ctk.CTkFrame):
         self.eta_label.configure(text=f"預計: {eta}")
         self.size_label.configure(text=f"大小: {formatted_size}")
 
+    def open_thumbnail_editor(self, event=None):
+        if self.current_raw_image:
+            ImageEditorDialog(self, self.current_raw_image)
+        else:
+            from PIL import Image, ImageDraw
+            img = Image.new("RGB", (640, 360), (30, 30, 30))
+            d = ImageDraw.Draw(img)
+            d.text((180, 170), "Studio0808 圖片預覽與編輯\n(請先貼上影片網址開始任務以獲取縮圖)", fill=(200, 200, 200))
+            ImageEditorDialog(self, img)
+
     def download_thumbnail_bg(self, url):
         from PIL import Image, ImageTk
         try:
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
                 img_data = resp.content
-                img = Image.open(io.BytesIO(img_data))
+                raw_img = Image.open(io.BytesIO(img_data))
+                self.current_raw_image = raw_img.copy()
                 
                 # Resize keeping aspect ratio, crop to 16:9 240x135
-                # Basic crop/resize
+                img = raw_img.copy()
                 w, h = img.size
                 target_ratio = 16/9
                 current_ratio = w/h
                 if current_ratio > target_ratio:
-                    # Too wide, crop width
                     new_w = int(h * target_ratio)
                     offset = (w - new_w) // 2
                     img = img.crop((offset, 0, offset + new_w, h))
                 else:
-                    # Too tall, crop height
                     new_h = int(w / target_ratio)
                     offset = (h - new_h) // 2
                     img = img.crop((0, offset, w, offset + new_h))
@@ -1353,7 +1473,7 @@ class DownloadView(ctk.CTkFrame):
                 self.current_thumb_tk = ImageTk.PhotoImage(img) # Keep reference
                 self.after(0, lambda: self.thumbnail_canvas.create_image(0, 0, image=self.current_thumb_tk, anchor="nw"))
         except Exception as e:
-            pass # Ignore thumbnail errors silently
+            pass
     # ---------------------------------------------
 
     def parse_chapters_from_description(self, description, duration):

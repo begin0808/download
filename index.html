@@ -402,7 +402,7 @@
         </div>
 
         <div class="hero-img-container">
-            <img src="download.png" alt="Studio0808 影音下載器介面截圖">
+            <img src="download.png" alt="Studio0808 影音下載器介面截圖" onclick="openLightbox(this.src)" style="cursor: pointer;" title="🔍 點擊全螢幕放大預覽軟體介面截圖">
         </div>
     </header>
 
@@ -523,6 +523,59 @@
       <p><span data-i18n="footer-text">© 2026 <a href="https://begin0808.github.io/studio0808/" target="_blank" style="color: var(--accent-color); text-decoration: none; font-weight: 600;">Studio0808 智造實驗室</a>. All rights reserved. </span><a href="https://mail.google.com/mail/?view=cm&fs=1&to=begin0808@gmail.com" target="_blank" style="color: var(--accent-color); text-decoration: none; font-weight: 600; margin-left: 8px;" data-i18n="footer-contact">✉ 寫信給我</a></p>
     </div>
   </footer>
+
+  <!-- Image Modal / Lightbox -->
+  <div id="imgModal" class="img-modal" onclick="closeLightbox()">
+      <span class="img-modal-close">&times;</span>
+      <img class="img-modal-content" id="imgModalContent" alt="高清截圖預覽">
+      <div id="imgModalCaption" class="img-modal-caption">🔍 點擊任意處關閉全螢幕預覽</div>
+  </div>
+
+  <style>
+      .img-modal {
+          display: none;
+          position: fixed;
+          z-index: 9999;
+          padding-top: 50px;
+          left: 0; top: 0;
+          width: 100%; height: 100%;
+          overflow: auto;
+          background-color: rgba(0, 0, 0, 0.88);
+          backdrop-filter: blur(8px);
+      }
+      .img-modal-content {
+          margin: auto;
+          display: block;
+          max-width: 90%;
+          max-height: 85vh;
+          border-radius: 12px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+      }
+      .img-modal-close {
+          position: absolute;
+          top: 20px; right: 35px;
+          color: #f1f1f1;
+          font-size: 40px;
+          font-weight: bold;
+          cursor: pointer;
+      }
+      .img-modal-caption {
+          margin: 15px auto;
+          text-align: center;
+          color: #ccc;
+          font-size: 0.95em;
+      }
+  </style>
+
+  <script>
+      function openLightbox(src) {
+          document.getElementById("imgModal").style.display = "block";
+          document.getElementById("imgModalContent").src = src;
+      }
+      function closeLightbox() {
+          document.getElementById("imgModal").style.display = "none";
+      }
+  </script>
 
 </body>
 
