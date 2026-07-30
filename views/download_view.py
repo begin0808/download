@@ -27,10 +27,12 @@ class PlaylistDialog(ctk.CTkToplevel):
         # Initialize selection state (Default to False)
         self.selected_state = {}
         for entry in entries:
-            url = entry.get('url', '')
-            if url and not url.startswith('http'):
-                 url = f"https://www.youtube.com/watch?v={url}"
-            self.selected_state[url] = False
+            if isinstance(entry, dict):
+                url = entry.get('url') or entry.get('id', '')
+                if url and not url.startswith('http'):
+                     url = f"https://www.youtube.com/watch?v={url}"
+                if url:
+                    self.selected_state[url] = False
             
         self.setup_ui()
         self.load_page()
@@ -129,8 +131,10 @@ class PlaylistDialog(ctk.CTkToplevel):
         # Create Checkboxes for this page
         for i in range(start_idx, end_idx):
             entry = self.entries[i]
+            if not isinstance(entry, dict):
+                continue
             title = entry.get('title', 'Unknown')
-            url = entry.get('url', '')
+            url = entry.get('url') or entry.get('id', '')
             if url and not url.startswith('http'):
                  url = f"https://www.youtube.com/watch?v={url}"
                  
@@ -834,12 +838,12 @@ class DownloadView(ctk.CTkFrame):
                 if not line.strip(): continue
                 try:
                     data = json.loads(line)
-                    if "entries" in data:
+                    if isinstance(data, dict) and "entries" in data and isinstance(data["entries"], list):
                         # Full playlist dictionary
                         for entry in data["entries"]:
-                            if entry.get("title") and entry.get("url"):
+                            if isinstance(entry, dict) and (entry.get("title") or entry.get("url") or entry.get("id")):
                                 entries.append(entry)
-                    elif data.get("title"):
+                    elif isinstance(data, dict) and (data.get("title") or data.get("url") or data.get("id")):
                         # Single line JSON for flat playlist
                         entries.append(data)
                 except: pass
@@ -1024,7 +1028,8 @@ class DownloadView(ctk.CTkFrame):
                 out_tmpl = os.path.join(video_dir, f"{video_title}_temp_wmv.%(ext)s")
             else:
                 out_tmpl = os.path.join(video_dir, f"{video_title}.%(ext)s")
-            ffmpeg_location = self.tools_dir if os.path.exists(os.path.join(self.tools_dir, "ffmpeg.exe")) else None
+            found_ffmpeg = self.get_tool_path("ffmpeg.exe")
+            ffmpeg_location = os.path.dirname(found_ffmpeg) if os.path.exists(found_ffmpeg) else None
             
             download_success = False
             self.downloaded_file = None
@@ -1358,8 +1363,8 @@ class DownloadView(ctk.CTkFrame):
         """
         import re
         lines = description.split('\n')
-        # Regex for HH:MM:SS or MM:SS at START of line
-        pattern = re.compile(r'^\s*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*(.*)')
+        # Regex for HH:MM:SS or MM:SS at START of line (supports brackets like [00:00] or (00:00))
+        pattern = re.compile(r'^\s*[\(\[\s]*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})[\)\]\s]*[\-–—:]?\s*(.*)')
         
         found_chapters = []
         for line in lines:
